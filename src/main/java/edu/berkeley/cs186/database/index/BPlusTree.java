@@ -144,11 +144,6 @@ public class BPlusTree {
         typecheck(key);
         // TODO(proj4_integration): Update the following line
         LockUtil.ensureSufficientLockHeld(lockContext, LockType.NL);
-
-        // TODO(proj2): implement
-        while (root instanceof InnerNode) {
-            root = root.get(key);
-        }
         return root.get(key).getKey(key);
     }
 
@@ -259,8 +254,12 @@ public class BPlusTree {
         // Note: You should NOT update the root variable directly.
         // Use the provided updateRoot() helper method to change
         // the tree's root if the old root splits.
-
-        return;
+        root.put(key, rid).ifPresent(result -> updateRoot(new InnerNode(metadata, bufferManager,
+                new ArrayList<>(Arrays.asList(result.getFirst())),
+                new ArrayList<>(Arrays.asList(root.getPage().getPageNum(), result.getSecond())),
+                lockContext
+        )));
+        // TODO: need to sync root ?
     }
 
     /**

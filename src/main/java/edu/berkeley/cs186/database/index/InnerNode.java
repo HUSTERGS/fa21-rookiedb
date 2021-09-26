@@ -9,6 +9,7 @@ import edu.berkeley.cs186.database.memory.BufferManager;
 import edu.berkeley.cs186.database.memory.Page;
 import edu.berkeley.cs186.database.table.RecordId;
 
+import javax.swing.text.html.Option;
 import java.nio.ByteBuffer;
 import java.util.*;
 
@@ -80,26 +81,88 @@ class InnerNode extends BPlusNode {
     // See BPlusNode.get.
     @Override
     public LeafNode get(DataBox key) {
-        for (int i = 0; i < keys.size(); ++i) {
+        int i = 0;
+        for (; i < keys.size(); ++i) {
             if (key.compareTo(keys.get(i)) < 0) {
-                return LeafNode.fromBytes(metadata, bufferManager, treeContext, children.get(i));
+                break;
             }
         }
-        return LeafNode.fromBytes(metadata, bufferManager, treeContext, children.get(keys.size()));
+
+        Page page = bufferManager.fetchPage(treeContext, children.get(i));
+        Buffer buf = page.getBuffer();
+        byte nodeType = buf.get();
+        if (nodeType == (byte) 0) {
+            // inner node
+            return fromBytes(metadata, bufferManager, treeContext, children.get(i)).get(key);
+        } else {
+            return LeafNode.fromBytes(metadata, bufferManager, treeContext, children.get(i));
+        }
     }
 
     // See BPlusNode.getLeftmostLeaf.
     @Override
     public LeafNode getLeftmostLeaf() {
+        // TODO
         assert(children.size() > 0);
-        return LeafNode.fromBytes(metadata, bufferManager, treeContext, children.get(0));
+        Page page = bufferManager.fetchPage(treeContext, children.get(0));
+        Buffer buf = page.getBuffer();
+        byte nodeType = buf.get();
+        if (nodeType == (byte) 0) {
+            // inner node
+            return fromBytes(metadata, bufferManager, treeContext, children.get(0)).getLeftmostLeaf();
+        } else {
+            return LeafNode.fromBytes(metadata, bufferManager, treeContext, children.get(0));
+        }
     }
 
     // See BPlusNode.put.
     @Override
     public Optional<Pair<DataBox, Long>> put(DataBox key, RecordId rid) {
-        // TODO(proj2): implement
+        int i = 0;
+        for (; i < keys.size(); ++i) {
+            if (key.compareTo(keys.get(i)) < 0) {
+                break;
+            }
+        }
+        Page page = bufferManager.fetchPage(treeContext, children.get(i));
+        Buffer buf = page.getBuffer();
+        byte nodeType = buf.get();
+        Optional<Pair<DataBox, Long>> result;
+        if (nodeType == (byte) 0) {
+            // inner node
+            result = fromBytes(metadata, bufferManager, treeContext, children.get(i)).put(key, rid);
+        } else {
+            // leaf node
+            result = LeafNode.fromBytes(metadata, bufferManager, treeContext, children.get(i)).put(key, rid);
+        }
+        if (result.isPresent()) {
+            key = result.get().getFirst();
 
+            keys.add(i, key);
+            children.add(i + 1, result.get().getSecond());
+
+            if (keys.size() == metadata.getOrder() * 2 + 1) {
+                // need split
+                List<DataBox> sub_keys = keys.subList(metadata.getOrder() + 1, metadata.getOrder() * 2 + 1);
+                List<Long> sub_children = children.subList(metadata.getOrder() + 1, metadata.getOrder() * 2 + 2);
+
+                List<DataBox> right_keys = new ArrayList<>(sub_keys);
+                List<Long> right_children = new ArrayList<>(sub_children);
+
+                InnerNode right_node = new InnerNode(metadata, bufferManager, right_keys, right_children, treeContext);
+
+                sub_keys.clear();
+                sub_children.clear();
+
+                key = keys.remove(keys.size() - 1);
+
+                right_node.sync();
+                this.sync();
+
+                return Optional.of(new Pair<>(key, right_node.getPage().getPageNum()));
+            }
+            this.sync();
+        }
         return Optional.empty();
     }
 

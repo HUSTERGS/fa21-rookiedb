@@ -9,7 +9,6 @@ import edu.berkeley.cs186.database.memory.BufferManager;
 import edu.berkeley.cs186.database.memory.Page;
 import edu.berkeley.cs186.database.table.RecordId;
 
-import javax.xml.crypto.Data;
 import java.nio.ByteBuffer;
 import java.util.*;
 
@@ -159,16 +158,41 @@ class LeafNode extends BPlusNode {
     // See BPlusNode.put.
     @Override
     public Optional<Pair<DataBox, Long>> put(DataBox key, RecordId rid) {
-        // TODO(proj2): implement
         if (keys.contains(key)) {
             throw new BPlusTreeException("Inserting repeat key");
         }
 
-        if (keys.size() == metadata.getOrder()) {
-            // after insertion, size of entries will exceed order (d), so need to split
-
+        int i = 0;
+        for (; i < keys.size(); ++i) {
+            if (key.compareTo(keys.get(i)) < 0) {
+                break;
+            }
         }
 
+        // if is the last, i will equal to keys.size(), just the right position
+        keys.add(i, key);
+        rids.add(i, rid);
+
+        if (keys.size() == metadata.getOrder() * 2 + 1) {
+            List<DataBox> sub_keys = keys.subList(metadata.getOrder(), metadata.getOrder() * 2 + 1);
+            List<RecordId> sub_rids = rids.subList(metadata.getOrder(), metadata.getOrder() * 2 + 1);
+
+            List<DataBox> right_keys = new ArrayList<>(sub_keys);
+            List<RecordId> right_rids = new ArrayList<>(sub_rids);
+
+            LeafNode right_node = new LeafNode(metadata, bufferManager, right_keys, right_rids, Optional.empty(), treeContext);
+            right_node.rightSibling = rightSibling;
+            rightSibling = Optional.of(right_node.getPage().getPageNum());
+
+            sub_keys.clear();
+            sub_rids.clear();
+
+            right_node.sync();
+            this.sync();
+
+            return Optional.of(new Pair<>(right_node.keys.get(0), right_node.getPage().getPageNum()));
+        }
+        this.sync();
         return Optional.empty();
     }
 
@@ -377,7 +401,6 @@ class LeafNode extends BPlusNode {
      */
     public static LeafNode fromBytes(BPlusTreeMetadata metadata, BufferManager bufferManager,
                                      LockContext treeContext, long pageNum) {
-        // TODO(proj2): implement
         // Note: LeafNode has two constructors. To implement fromBytes be sure to
         // use the constructor that reuses an existing page instead of fetching a
         // brand new one.
