@@ -414,7 +414,14 @@ class LeafNode extends BPlusNode {
         byte nodeType = buf.get();
         assert(nodeType == (byte) 1);
 
-        Optional<Long> rightSibling = Optional.of(buf.getLong());
+        long value = buf.getLong();
+        Optional<Long> rightSibling;
+        if (value == -1) {
+            rightSibling = Optional.empty();
+        } else {
+            rightSibling = Optional.of(value);
+        }
+
         int n = buf.getInt();
         List<DataBox> keys = new ArrayList<>();
         List<RecordId> rids = new ArrayList<>();

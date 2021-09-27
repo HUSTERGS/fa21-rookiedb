@@ -199,8 +199,7 @@ public class BPlusTree {
         LockUtil.ensureSufficientLockHeld(lockContext, LockType.NL);
 
         // TODO(proj2): Return a BPlusTreeIterator.
-
-        return Collections.emptyIterator();
+        return new BPlusTreeIterator(root.getLeftmostLeaf(), 0);
     }
 
     /**
@@ -231,8 +230,13 @@ public class BPlusTree {
         // TODO(proj4_integration): Update the following line
         LockUtil.ensureSufficientLockHeld(lockContext, LockType.NL);
 
-        // TODO(proj2): Return a BPlusTreeIterator.
-
+        LeafNode leaf = root.get(key);
+        int i = 0;
+        for (; i < leaf.getKeys().size(); i++) {
+            if (leaf.getKeys().get(i).compareTo(key) >= 0) {
+                return new BPlusTreeIterator(leaf, i);
+            }
+        }
         return Collections.emptyIterator();
     }
 
@@ -420,18 +424,33 @@ public class BPlusTree {
     // Iterator ////////////////////////////////////////////////////////////////
     private class BPlusTreeIterator implements Iterator<RecordId> {
         // TODO(proj2): Add whatever fields and constructors you want here.
+        private LeafNode startNode;
+
+        private int nextIndex;
+
+        BPlusTreeIterator(LeafNode node, int index) {
+            this.startNode = node;
+            this.nextIndex = index;
+        }
 
         @Override
         public boolean hasNext() {
-            // TODO(proj2): implement
-
-            return false;
+            while (nextIndex == startNode.getKeys().size()) {
+                if (startNode.getRightSibling().isPresent()) {
+                    startNode = startNode.getRightSibling().get();
+                    nextIndex = 0;
+                } else {
+                    return false;
+                }
+            }
+            return true;
         }
 
         @Override
         public RecordId next() {
-            // TODO(proj2): implement
-
+            if (hasNext()) {
+                return startNode.getRids().get(nextIndex++);
+            }
             throw new NoSuchElementException();
         }
     }
