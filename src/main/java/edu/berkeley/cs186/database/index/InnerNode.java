@@ -77,6 +77,7 @@ class InnerNode extends BPlusNode {
         }
     }
 
+
     // Core API ////////////////////////////////////////////////////////////////
     // See BPlusNode.get.
     @Override
@@ -87,32 +88,14 @@ class InnerNode extends BPlusNode {
                 break;
             }
         }
-
-        Page page = bufferManager.fetchPage(treeContext, children.get(i));
-        Buffer buf = page.getBuffer();
-        byte nodeType = buf.get();
-        if (nodeType == (byte) 0) {
-            // inner node
-            return fromBytes(metadata, bufferManager, treeContext, children.get(i)).get(key);
-        } else {
-            return LeafNode.fromBytes(metadata, bufferManager, treeContext, children.get(i));
-        }
+        return getChild(i).get(key);
     }
 
     // See BPlusNode.getLeftmostLeaf.
     @Override
     public LeafNode getLeftmostLeaf() {
-        // TODO
         assert(children.size() > 0);
-        Page page = bufferManager.fetchPage(treeContext, children.get(0));
-        Buffer buf = page.getBuffer();
-        byte nodeType = buf.get();
-        if (nodeType == (byte) 0) {
-            // inner node
-            return fromBytes(metadata, bufferManager, treeContext, children.get(0)).getLeftmostLeaf();
-        } else {
-            return LeafNode.fromBytes(metadata, bufferManager, treeContext, children.get(0));
-        }
+        return getChild(0).getLeftmostLeaf();
     }
 
     // See BPlusNode.put.
@@ -124,17 +107,7 @@ class InnerNode extends BPlusNode {
                 break;
             }
         }
-        Page page = bufferManager.fetchPage(treeContext, children.get(i));
-        Buffer buf = page.getBuffer();
-        byte nodeType = buf.get();
-        Optional<Pair<DataBox, Long>> result;
-        if (nodeType == (byte) 0) {
-            // inner node
-            result = fromBytes(metadata, bufferManager, treeContext, children.get(i)).put(key, rid);
-        } else {
-            // leaf node
-            result = LeafNode.fromBytes(metadata, bufferManager, treeContext, children.get(i)).put(key, rid);
-        }
+        Optional<Pair<DataBox, Long>> result = getChild(i).put(key, rid);
         if (result.isPresent()) {
             key = result.get().getFirst();
 
@@ -179,8 +152,13 @@ class InnerNode extends BPlusNode {
     @Override
     public void remove(DataBox key) {
         // TODO(proj2): implement
-
-        return;
+        int i = 0;
+        for (; i < keys.size(); ++i) {
+            if (key.compareTo(keys.get(i)) < 0) {
+                break;
+            }
+        }
+        getChild(i).remove(key);
     }
 
     // Helpers /////////////////////////////////////////////////////////////////
