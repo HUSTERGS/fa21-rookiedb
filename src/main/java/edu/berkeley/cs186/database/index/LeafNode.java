@@ -180,8 +180,7 @@ class LeafNode extends BPlusNode {
             List<DataBox> right_keys = new ArrayList<>(sub_keys);
             List<RecordId> right_rids = new ArrayList<>(sub_rids);
 
-            LeafNode right_node = new LeafNode(metadata, bufferManager, right_keys, right_rids, Optional.empty(), treeContext);
-            right_node.rightSibling = rightSibling;
+            LeafNode right_node = new LeafNode(metadata, bufferManager, right_keys, right_rids, rightSibling, treeContext);
             rightSibling = Optional.of(right_node.getPage().getPageNum());
 
             sub_keys.clear();
@@ -201,7 +200,35 @@ class LeafNode extends BPlusNode {
     public Optional<Pair<DataBox, Long>> bulkLoad(Iterator<Pair<DataBox, RecordId>> data,
             float fillFactor) {
         // TODO(proj2): implement
-
+        while (keys.size() != (int) (2 * metadata.getOrder() * fillFactor)) {
+            if (data.hasNext()) {
+                int i = 0;
+                Pair<DataBox, RecordId> result = data.next();
+                for (; i < keys.size(); i++) {
+                    if (keys.get(i).compareTo(result.getFirst()) > 0) {
+                        break;
+                    }
+                }
+                keys.add(i, result.getFirst());
+                rids.add(i, result.getSecond());
+                continue;
+            }
+            break;
+        }
+        if (data.hasNext()) {
+            // means need split
+            Pair<DataBox, RecordId> result = data.next();
+            LeafNode rightNode = new LeafNode(metadata, bufferManager,
+                    new ArrayList<>(Arrays.asList(result.getFirst())),
+                    new ArrayList<>(Arrays.asList(result.getSecond())),
+                    rightSibling, treeContext
+            );
+            rightSibling = Optional.of(rightNode.getPage().getPageNum());
+            rightNode.sync();
+            this.sync();
+            return Optional.of(new Pair<>(result.getFirst(), rightSibling.get()));
+        }
+        this.sync();
         return Optional.empty();
     }
 
